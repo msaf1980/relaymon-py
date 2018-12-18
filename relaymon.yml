@@ -1,0 +1,11 @@
+#log_file: "/tmp/relaymon.log"
+log_level: "info"
+#check_time: 30
+
+services:
+  - name: "carbon-c-relay"
+    config: "/etc/carbon-c-relay.conf"
+  - name: "statsite"
+    config: "cat /etc/statsite/statsite.conf"
+  - name: "statsd-ha-proxy"
+    config: "/etc/statsd-ha-proxy/config.yml"
