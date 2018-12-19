@@ -47,13 +47,13 @@ class ServiceStatus:
     def __int__(self):
         return self.code
 
-
-class ServiceMon:
     rSince = re.compile(r'since [A-Za-z]+ ([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([\+-][0-9]+);')
+
+    rPID = re.compile(r' PID: +([0-9]+) +')
 
     @staticmethod
     def parse_datetime(s):
-        match = ServiceMon.rSince.findall(s)
+        match = ServiceStatus.rSince.findall(s)
         try:
             dateTime = datetime.datetime(int(match[0][0]), int(match[0][1]), int(match[0][2]), hour=int(match[0][3]), minute=int(match[0][4]), second=int(match[0][5]))
             return dateTime
@@ -61,16 +61,18 @@ class ServiceMon:
             #print str(e)
             return None
 
-    def __init__(self, service, config):
-        self.service = service
-        self.config = config
-        self.status = None
-        self.main_pid = None
-        self.last_status = None
-        self.startTime = None
+    @staticmethod
+    def parse_pid(s):
+        match = ServiceStatus.rPID.findall(s)
+        try:
+            return int(match[0])
+        except Exception as e:
+            #print str(e)
+            return None
 
-    def getStatus(self):
-        cmd = '/bin/systemctl status %s.service' % self.service
+    @staticmethod
+    def getStatus(service):
+        cmd = '/bin/systemctl status %s.service' % service
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
         stdout_list = out.split('\n')
@@ -80,19 +82,37 @@ class ServiceMon:
         #print(stdout_list)
         #print(stderr_list)
         #print(rc)
+        status = ServiceStatus(ServiceStatus.UNKNOWN)
+        startTime = None
+        mainPid = None
         if rc == 0:
             for line in stdout_list:
                 if 'Active: active ' in line:
-                    return ServiceStatus(ServiceStatus.ACTIVE), ServiceMon.parse_datetime(line)
+                    status = ServiceStatus(ServiceStatus.ACTIVE)
+                    startTime = ServiceStatus.parse_datetime(line)
+                elif 'Main PID: ' in line:
+                    mainPid = ServiceStatus.parse_pid(line)
         else:
             for line in stdout_list:
                 if 'Active: failed ' in line:
-                    return ServiceStatus(ServiceStatus.FAILED), ServiceMon.parse_datetime(line)
+                    status = ServiceStatus(ServiceStatus.FAILED)
+                    startTime = ServiceStatus.parse_datetime(line)
                 elif 'Active: inactive ' in line:
-                    return ServiceStatus(ServiceStatus.INACTIVE), ServiceMon.parse_datetime(line)
+                    status = ServiceStatus(ServiceStatus.INACTIVE)
+                    startTime = ServiceStatus.parse_datetime(line)
 
             for line in stderr_list:
                 if 'service could not be found' in line:
-                    return ServiceStatus(ServiceStatus.NOT_FOUND), None
+                    status = ServiceStatus(ServiceStatus.NOT_FOUND)
 
-            return ServiceStatus(ServiceStatus.UNKNOWN), None
+        return status, startTime, mainPid
+
+class Service:
+    def __init__(self, service, config):
+        self.service = service
+        self.config = config
+        self.status = None
+        self.changeTime = None
+        self.flapCount = 0
+        self.flapStartTime = None
+

@@ -5,8 +5,8 @@ import argparse
 import yaml
 import logging
 
-from service import ServiceStatus, ServiceMon
-from carbon_c_relay import CarbonCRelayMon
+from service import ServiceStatus, Service
+from carbon_c_relay import CarbonCRelay
 
 
 def parseArgs():
@@ -74,10 +74,7 @@ def main():
             type = s.get('type')
             if type is None:
                 type = s['name']
-            if type == "carbon-c-relay":
-                service = CarbonCRelayMon(s['name'], s.get('config'))
-            else:
-                service = ServiceMon(s['name'], s.get('config'))
+            service = Service(s['name'], s.get('config'))
 
             services.append(service)
     except Exception as e:
@@ -86,8 +83,9 @@ def main():
 
     error = False
     for s in services:
-        status, startTime = s.getStatus()
-        #print("%s '%s' %s" % (s.service, status, startTime))
+        print(s)
+        status, startTime, mainPid = ServiceStatus.getStatus(s.service)
+        print("%s '%s' %s, PID %s" % (s.service, status, startTime, str(mainPid)))
         if status.code == ServiceStatus.NOT_FOUND:
             logger.error("service not found: %s" % s.service)
             error = True

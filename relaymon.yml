@@ -9,3 +9,4 @@ services:
     config: "cat /etc/statsite/statsite.conf"
   - name: "statsd-ha-proxy"
     config: "/etc/statsd-ha-proxy/config.yml"
+  - name: "sshd"

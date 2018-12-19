@@ -1,5 +1,6 @@
-from service import ServiceStatus, ServiceMon
+from service import ServiceStatus, Service
 
-class CarbonCRelayMon(ServiceMon):
+
+class CarbonCRelay:
     def readConfig(self):
         pass
