@@ -4,19 +4,30 @@ import sys
 import argparse
 import yaml
 import logging
+import time
+import subprocess
 
 from service import ServiceStatus, Service
 from carbon_c_relay import CarbonCRelay
 
+def GetExceptionLoc():
+    exc_type, exc_obj, tb = sys.exc_info()
+    f = tb.tb_frame
+    lineno = tb.tb_lineno
+    filename = f.f_code.co_filename
+    return (filename, lineno)
 
 def parseArgs():
     parser = argparse.ArgumentParser(
         description='Monitor graphite relay processes and run reconfigure task on failure/recovery')
     parser.add_argument("--config", help='config', default="/etc/relaymon.yml")
+    parser.add_argument("--debug", help='debug', default=False, action='store_true')
     return parser.parse_args()
 
 
-def parseLogLevel(s):
+def parseLogLevel(s, debug):
+    if debug:
+        return logging.DEBUG
     if s is None:
         return logging.INFO
     l = s.lower()
@@ -35,6 +46,9 @@ def parseLogLevel(s):
 
 def main():
     logger = None
+    recovery_cmd = None
+    error_cmd = None
+    recovery_interval = 0
     try:
 
         #FORMAT = '%(asctime)-15s %(message)s'
@@ -48,7 +62,7 @@ def main():
             cfg = yaml.load(ymlfile)
 
         logger = logging.getLogger('relaymon')
-        logger.setLevel(parseLogLevel(cfg.get('log_level')))
+        logger.setLevel(parseLogLevel(cfg.get('log_level'), args.debug))
 
         logfile = cfg.get('log_file')
         if logfile:
@@ -64,8 +78,16 @@ def main():
         sys.stderr.write("init error: %s\n" % str(e))
         sys.exit(0)
 
+    interval = 0
     try:
-        # print(cfg)
+        error_cmd = cfg['error_cmd']
+        recovery_cmd = cfg['recovery_cmd']
+        recovery_interval = int(cfg.get('recovery_interval', '0'))
+
+        check_interval = int(cfg.get('check_interval', '30'))
+        check_count = int(cfg.get('check_count', '20'))
+        fail_count = int(cfg.get('fail_count', '10'))
+        reset_count = int(cfg.get('reset_count', '10'))
 
         services = []
 
@@ -74,24 +96,75 @@ def main():
             type = s.get('type')
             if type is None:
                 type = s['name']
-            service = Service(s['name'], s.get('config'))
+            service = Service(s['name'], s.get('config'), check_count, fail_count, reset_count)
 
             services.append(service)
     except Exception as e:
-        logger.error("parse config: %s" % str(e))
+        (filename, linenum) = GetExceptionLoc()
+        logger.error("%s:%s parse config: %s" % (filename, linenum, str(e)))
         sys.exit(0)
+
 
     error = False
-    for s in services:
-        print(s)
-        status, startTime, mainPid = ServiceStatus.getStatus(s.service)
-        print("%s '%s' %s, PID %s" % (s.service, status, startTime, str(mainPid)))
-        if status.code == ServiceStatus.NOT_FOUND:
-            logger.error("service not found: %s" % s.service)
+    last_ok_t = None
+    while True:
+        error_check = False
+        error_step = False
+        for s in services:
+            last_fail = s.fail
+            (fail, err) = s.check_fail()
+            status = "service %s is %s (%s)%s" % (s.service,
+                                         ServiceStatus.toStr(s.last_status()),
+                                         s.startTime,
+                                         (", failed state" if fail else ""))
+            if fail:
+                error_step = True
+                if not err is None:
+                    logger.info(err)
+                    error_check = True
+            elif last_fail:
+                logger.info(status)
+                status = None
+
+            if not status is None:
+                logger.debug(status)
+
+        # Check for recovery
+        if not error_check:
+            if recovery_interval > 0 and not recovery_cmd is None:
+                current_t = int(time.time())
+                if error_step:
+                    last_ok_t = None
+                elif last_ok_t is None:
+                    last_ok_t = current_t
+                elif error and current_t - last_ok_t >= recovery_interval:
+                    # Run recovery command
+                    try:
+                        proc = subprocess.Popen(recovery_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                        out = proc.communicate()[0]
+                        rc = proc.returncode
+                        logger.info("error event (%d): %s" % (rc, out))
+                    except Exception as e:
+                        logger.error("recovery event: " + str(e))
+
+                    error = False
+
+                if not last_ok_t is None:
+                    logger.debug("active interval: %d (%d - %d)", current_t - last_ok_t, current_t, last_ok_t)
+        elif not error:
+            last_ok_t = None
+            try:
+                proc = subprocess.Popen(error_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                out = proc.communicate()[0]
+                rc = proc.returncode
+                logger.info("error event (%d): %s" % (rc, out))
+            except Exception as e:
+                logger.error("error event: " + str(e))
+
             error = True
 
-    if error:
-        sys.exit(0)
+        time.sleep(check_interval)
+
 
 
 if __name__ == "__main__":

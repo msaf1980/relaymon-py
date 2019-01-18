@@ -1,12 +1,18 @@
 #log_file: "/tmp/relaymon.log"
 log_level: "info"
-#check_time: 30
+check_interval: 10
+check_count: 6
+fail_count: 3
+reset_count: 2
+recovery_interval: 80
+
+recovery_cmd: "echo UP; ip addr"
+error_cmd: "echo DOWN; ip addr"
+
+carbon_c_relay:
+    config: "/etc/carbon-c-relay.conf"
 
 services:
-  - name: "carbon-c-relay"
-    config: "/etc/carbon-c-relay.conf"
-  - name: "statsite"
-    config: "cat /etc/statsite/statsite.conf"
-  - name: "statsd-ha-proxy"
-    config: "/etc/statsd-ha-proxy/config.yml"
+  #- name: "carbon-c-relay"
+  #- name: "bioyino"
   - name: "sshd"
