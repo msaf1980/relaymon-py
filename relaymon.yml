@@ -9,8 +9,7 @@ recovery_interval: 80
 recovery_cmd: "echo UP; ip addr"
 error_cmd: "echo DOWN; ip addr"
 
-carbon_c_relay:
-    config: "/etc/carbon-c-relay.conf"
+carbon_c_relay: "/etc/carbon-c-relay.conf"
 
 services:
   #- name: "carbon-c-relay"

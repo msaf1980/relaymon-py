@@ -104,6 +104,12 @@ def main():
         logger.error("%s:%s parse config: %s" % (filename, linenum, str(e)))
         sys.exit(0)
 
+    carbon_c_relay_conf = cfg.get('carbon_c_relay')
+    print(carbon_c_relay_conf)
+    if carbon_c_relay_conf is None:
+        carbon_c_relay = None
+    else:
+        carbon_c_relay = CarbonCRelay(carbon_c_relay_conf)
 
     error = False
     last_ok_t = None
