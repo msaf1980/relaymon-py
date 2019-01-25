@@ -103,52 +103,55 @@ class ServiceStatus:
 
         return status, startTime, mainPid
 
+
 # Service State
 class Service:
-    def __init__(self, service, config, checkCount, maxFailCount, resetCount):
+    def __init__(self, service, check_count, max_fail_count, reset_count):
         self.service = service
-        self.config = config
-        self.status = collections.deque(maxlen=checkCount)
-        self.startTime = None
+        self.status = collections.deque(maxlen=check_count)
+        self.start_time = None
         self.fail = False
-        self.maxFailCount = maxFailCount
-        self.checkCount = checkCount
-        self.resetCount = resetCount
+        self.max_fail_count = max_fail_count
+        self.check_count = check_count
+        self.reset_count = reset_count
 
     def check_fail(self):
-        (status, startTime, mainPid) = ServiceStatus.getStatus(self.service)
+        (status, start_time, main_pid) = ServiceStatus.getStatus(self.service)
         if status ==  ServiceStatus.NOT_FOUND:
             raise ValueError("service %s is unknown" % self.service)
-        elif status == ServiceStatus.ACTIVE and startTime != self.startTime:
+        elif status == ServiceStatus.ACTIVE and start_time != self.start_time:
             # try to detect restart service
             if len(self.status) > 0:
                 self.status.append(ServiceStatus.RESTARTED)
             else:
                 # first check
                 self.status.append(status)
-            self.startTime = startTime
+            self.start_time = start_time
         else:
             self.status.append(status)
 
+        return self.check_fail_status()
 
-        if len(self.status) == self.checkCount:
+    def check_fail_status(self):
+        if len(self.status) == self.check_count:
             # Detect service flap
-            failCount = 0
-            activeCount = 0
+            fail_count = 0
+            active_count = 0
             for s in self.status:
                 if s == ServiceStatus.ACTIVE:
-                    activeCount += 1
+                    active_count += 1
                     # Reset fail counter
-                    if activeCount >= self.resetCount:
-                        if failCount > 0:
-                            failCount = 0
+                    if active_count >= self.reset_count:
+                        if fail_count > 0:
+                            fail_count = 0
                             self.fail = False
+                            err = "service %s recovered" % self.service
                 else:
-                    failCount += 1
-                    activeCount = 0
+                    fail_count += 1
+                    active_count = 0
 
             # Fail service
-            if failCount >= self.maxFailCount:
+            if fail_count >= self.max_fail_count:
                 err = None
                 if not self.fail:
                     self.fail = True

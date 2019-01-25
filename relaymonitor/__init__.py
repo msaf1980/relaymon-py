@@ -59,12 +59,8 @@ def main():
         sys.exit(0)
 
     try:
-
-        #FORMAT = '%(asctime)-15s %(message)s'
         FORMAT = "%(asctime)s '%(name)s' %(levelname)s: %(message)s"
         logging.basicConfig(format=FORMAT)
-
-        # print(args)
 
         with open(args.config, 'r') as ymlfile:
             cfg = yaml.load(ymlfile)
@@ -97,15 +93,12 @@ def main():
         fail_count = int(cfg.get('fail_count', '10'))
         reset_count = int(cfg.get('reset_count', '10'))
 
+        net_timeout = int(cfg.get('net_timeout', '10'))
+
         services = []
 
         for s in cfg['services']:
-            service = None
-            type = s.get('type')
-            if type is None:
-                type = s['name']
-            service = Service(s['name'], s.get('config'), check_count, fail_count, reset_count)
-
+            service = Service(s, check_count, fail_count, reset_count)
             services.append(service)
     except Exception as e:
         (filename, linenum) = GetExceptionLoc()
@@ -114,34 +107,60 @@ def main():
 
     carbon_c_relay_conf = cfg.get('carbon_c_relay')
     if not carbon_c_relay_conf is None:
-        relay = CarbonCRelay(carbon_c_relay_conf)
+        relay = CarbonCRelay(carbon_c_relay_conf, net_timeout, check_count, fail_count, reset_count)
 
     error = False
     last_ok_t = None
     while True:
-        error_check = False
+        error_trigger = False
         error_step = False
         for s in services:
             last_fail = s.fail
             (fail, err) = s.check_fail()
-            status = "service %s is %s (%s)%s" % (s.service,
-                                         ServiceStatus.toStr(s.last_status()),
-                                         s.startTime,
-                                         (", failed state" if fail else ""))
+            if not err is None:
+                logger.info(err)
             if fail:
                 error_step = True
                 if not err is None:
-                    logger.info(err)
-                    error_check = True
-            elif last_fail:
-                logger.info(status)
-                status = None
+                    error_trigger = True
 
-            if not status is None:
-                logger.debug(status)
+            if args.debug:
+                logger.debug("service %s is %s (%s)%s" % (s.service,
+                                 ServiceStatus.toStr(s.last_status()),
+                                 s.start_time,
+                                 (", failed state" if fail else ""))
+                            )
+
+        if not relay is None:
+            current_t = int(time.time())
+            # Run network check
+            relay.try_connect()
+            for cluster in relay.backends:
+                for b in cluster.hosts:
+                    if b.fail != b.prev_fail:
+                        logger.info("cluster node %s %s" % (cluster.name, b))
+
+                if cluster.fail != cluster.prev_fail:
+                    logger.info("cluster %s %s" % (cluster.name, (" failed" if cluster.fail else "")))
+
+            (fail, err) = relay.check_fail_status()
+            if not err is None:
+                logger.info(err)
+            if fail:
+                error_step = True
+                if not err is None:
+                    error_trigger = True
+
+            if args.debug:
+                logger.debug("relay backends %s" % ("failed" if fail else "ok"))
+                #logger.debug(str(relay.fail_status) + " %d" % relay.check_count)
+
+            sleep_t = check_interval + current_t - int(time.time())
+        else:
+            sleep_t = check_interval
 
         # Check for recovery
-        if not error_check:
+        if not error_trigger:
             if recovery_interval > 0 and not recovery_cmd is None:
                 current_t = int(time.time())
                 if error_step:
@@ -161,7 +180,7 @@ def main():
                     error = False
 
                 if not last_ok_t is None:
-                    logger.debug("active interval: %d (%d - %d)", current_t - last_ok_t, current_t, last_ok_t)
+                    logger.debug("interval: %d (%d - %d)", current_t - last_ok_t, current_t, last_ok_t)
         elif not error:
             last_ok_t = None
             try:
@@ -174,4 +193,4 @@ def main():
 
             error = True
 
-        time.sleep(check_interval)
+        time.sleep(sleep_t)
