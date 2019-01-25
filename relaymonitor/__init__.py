@@ -6,10 +6,22 @@ import yaml
 import logging
 import time
 import subprocess
+import signal
 
 from . import version
 from .service import ServiceStatus, Service
 from .carbon_c_relay import CarbonCRelay
+
+
+class Runner:
+  def __init__(self):
+    self.run = True
+    signal.signal(signal.SIGINT, self.exit_gracefully)
+    signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+  def exit_gracefully(self,signum, frame):
+    self.run = False
+
 
 def GetExceptionLoc():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -109,9 +121,11 @@ def main():
     if not carbon_c_relay_conf is None:
         relay = CarbonCRelay(carbon_c_relay_conf, net_timeout, check_count, fail_count, reset_count)
 
+
     error = False
     last_ok_t = None
-    while True:
+    runner = Runner()
+    while runner.run:
         error_trigger = False
         error_step = False
         for s in services:
@@ -193,5 +207,8 @@ def main():
 
             error = True
 
-        if sleep_t > 0:
+        if runner.run and sleep_t > 0:
             time.sleep(sleep_t)
+
+
+    logger.info("shutdown")
