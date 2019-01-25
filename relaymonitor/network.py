@@ -26,10 +26,6 @@ class Host:
             self.fail = fail
 
         return not self.fail
-<<<<<<< HEAD
-=======
-
->>>>>>> d40b5349c25ff02fa3681f71bb7870f080cb5a87
 
     def __hash__(self):
         return hash(self.address)
@@ -48,28 +44,12 @@ class Host:
         else:
             status = " connected"
 
-<<<<<<< HEAD
-        return "%s:%s%s" % (self.address[0], self.address[1], status)
-=======
->>>>>>> d40b5349c25ff02fa3681f71bb7870f080cb5a87
-
-    def __repr__(self):
-        return "'%s'" % self
-
-<<<<<<< HEAD
-    #__repr__ = __str__
-
-
-=======
         return "%s:%s%s" % (self.address[0], self.address[1], status)
 
     def __repr__(self):
         return "'%s'" % self
 
-    #__repr__ = __str__
 
-
->>>>>>> d40b5349c25ff02fa3681f71bb7870f080cb5a87
 class Cluster:
     def __init__(self, name):
         self.name = name
@@ -147,8 +127,4 @@ class ClusterGroup:
         if len(self.status) == 0:
             return None
         else:
-<<<<<<< HEAD
             return self.status[-1]
-=======
-            return self.status[-1]
->>>>>>> d40b5349c25ff02fa3681f71bb7870f080cb5a87
