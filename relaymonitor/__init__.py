@@ -193,4 +193,5 @@ def main():
 
             error = True
 
-        time.sleep(sleep_t)
+        if sleep_t > 0:
+            time.sleep(sleep_t)
