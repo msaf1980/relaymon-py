@@ -6,12 +6,14 @@ fail_count: 3
 reset_count: 2
 recovery_interval: 80
 
+#net_timeout: 10
+
 recovery_cmd: "echo UP; ip addr"
 error_cmd: "echo DOWN; ip addr"
 
 carbon_c_relay: "/etc/carbon-c-relay.conf"
 
 services:
-  #- name: "carbon-c-relay"
-  #- name: "bioyino"
-  - name: "sshd"
+  #- "carbon-c-relay"
+  #- "bioyino"
+  - "sshd"
