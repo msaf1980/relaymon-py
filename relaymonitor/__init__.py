@@ -7,8 +7,9 @@ import logging
 import time
 import subprocess
 
-from service import ServiceStatus, Service
-from carbon_c_relay import CarbonCRelay
+from . import version
+from .service import ServiceStatus, Service
+from .carbon_c_relay import CarbonCRelay
 
 def GetExceptionLoc():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -22,8 +23,8 @@ def parseArgs():
         description='Monitor graphite relay processes and run reconfigure task on failure/recovery')
     parser.add_argument("--config", help='config', default="/etc/relaymon.yml")
     parser.add_argument("--debug", help='debug', default=False, action='store_true')
+    parser.add_argument("--version", help='version', default=False, action='store_true')
     return parser.parse_args()
-
 
 def parseLogLevel(s, debug):
     if debug:
@@ -49,19 +50,26 @@ def main():
     recovery_cmd = None
     error_cmd = None
     recovery_interval = 0
+    relay = None
+
+    name = "relaymon"
+    args = parseArgs()
+    if args.version:
+        print("%s %s" % (name, version.version))
+        sys.exit(0)
+
     try:
 
         #FORMAT = '%(asctime)-15s %(message)s'
         FORMAT = "%(asctime)s '%(name)s' %(levelname)s: %(message)s"
         logging.basicConfig(format=FORMAT)
 
-        args = parseArgs()
         # print(args)
 
         with open(args.config, 'r') as ymlfile:
             cfg = yaml.load(ymlfile)
 
-        logger = logging.getLogger('relaymon')
+        logger = logging.getLogger(name)
         logger.setLevel(parseLogLevel(cfg.get('log_level'), args.debug))
 
         logfile = cfg.get('log_file')
@@ -105,11 +113,8 @@ def main():
         sys.exit(0)
 
     carbon_c_relay_conf = cfg.get('carbon_c_relay')
-    print(carbon_c_relay_conf)
-    if carbon_c_relay_conf is None:
-        carbon_c_relay = None
-    else:
-        carbon_c_relay = CarbonCRelay(carbon_c_relay_conf)
+    if not carbon_c_relay_conf is None:
+        relay = CarbonCRelay(carbon_c_relay_conf)
 
     error = False
     last_ok_t = None
@@ -170,8 +175,3 @@ def main():
             error = True
 
         time.sleep(check_interval)
-
-
-
-if __name__ == "__main__":
-    main()
