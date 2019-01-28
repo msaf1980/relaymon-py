@@ -133,6 +133,7 @@ class Service:
         return self.check_fail_status()
 
     def check_fail_status(self):
+        msg = None
         if len(self.status) == self.check_count:
             # Detect service flap
             fail_count = 0
@@ -140,25 +141,24 @@ class Service:
             for s in self.status:
                 if s == ServiceStatus.ACTIVE:
                     active_count += 1
-                    # Reset fail counter
                     if active_count >= self.reset_count:
+                        # Reset fail counter
                         if fail_count > 0:
                             fail_count = 0
                             self.fail = False
-                            err = "service %s recovered" % self.service
+                            msg = "service %s recovered" % self.service
                 else:
                     fail_count += 1
                     active_count = 0
 
-            # Fail service
             if fail_count >= self.max_fail_count:
-                err = None
+                # Fail service
                 if not self.fail:
                     self.fail = True
-                    err = "service %s failed" % self.service
-                return True, err
+                    msg = "service %s failed" % self.service
+                return True, msg
 
-        return False, None
+        return False, msg
 
     def last_status(self):
         if len(self.status) == 0:

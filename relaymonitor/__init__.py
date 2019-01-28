@@ -167,7 +167,6 @@ def main():
 
             if args.debug:
                 logger.debug("relay backends %s" % ("failed" if fail else "ok"))
-                #logger.debug(str(relay.fail_status) + " %d" % relay.check_count)
 
             sleep_t = check_interval + current_t - int(time.time())
         else:

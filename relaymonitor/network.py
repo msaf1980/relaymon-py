@@ -98,6 +98,7 @@ class ClusterGroup:
         return connected
 
     def check_fail_status(self):
+        msg = None
         if len(self.fail_status) == self.check_count:
             # Detect service flap
             fail_count = 0
@@ -106,24 +107,25 @@ class ClusterGroup:
                 if s:
                     fail_count += 1
                     active_count = 0
+                    if not msg is None:
+                        msg = None
                 else:
                     active_count += 1
-                    # Reset fail counter
                     if active_count >= self.reset_count:
+                        # Reset fail counter
                         if fail_count > 0:
                             fail_count = 0
                             self.fail = False
-                            err = "cluster group %s recovered" % self.name
+                            msg = "cluster group %s recovered" % self.name
 
-            # Fail service
             if fail_count >= self.max_fail_count:
-                err = None
+                # Fail service
                 if not self.fail:
                     self.fail = True
-                    err = "cluster group %s failed" % self.name
-                return True, err
+                    msg = "cluster group %s failed" % self.name
+                return True, msg
 
-        return False, None
+        return False, msg
 
     def last_status(self):
         if len(self.status) == 0:
