@@ -2,13 +2,19 @@
 
 import re
 import os
-from setuptools import setup
-from distutils.command.clean import clean
+import sys
+import glob
 import shlex
-from subprocess import check_output
+import subprocess
+from setuptools import setup
+from distutils.cmd import Command
+from distutils.command.clean import clean
+from distutils.errors import *
 
 name = 'relaymon'
 pname = 'relaymonitor'
+testdir = 'tests'
+
 release = False
 
 def pkg_version(name):
@@ -23,11 +29,46 @@ def pkg_version(name):
                 return "%d.%d.%d" % (int(m.group(1)), int(m.group(2)), int(m.group(3)))
     raise ValueError("version not found")
 
+
+class TestError(DistutilsError):
+    pass
+
+
+class RunTests(Command):
+    user_options = []
+
+    def initialize_options(self):
+        self.xml_output = None
+
+    def finalize_options(self): pass
+
+    def run(self):
+        os.chdir(testdir)
+        pythonpath = os.environ.get('PYTHONPATH')
+        if pythonpath is None:
+            pythonpath = '..'
+        else:
+            pythonpath = '..:%s' % pythonpath
+        os.environ['PYTHONPATH'] = pythonpath
+
+        errors = 0
+        for test in glob.glob('test_*.py'):
+            base, ext = os.path.splitext(test)
+            print(testdir + '/' + base)
+            proc = subprocess.Popen([sys.executable, '-m', 'unittest', base])
+            proc.communicate()
+            rc = proc.returncode
+            if rc != 0:
+                errors += 1
+
+        if errors > 0:
+            raise TestError("test failed (%d)!" % errors)
+
+
 class RunClean(clean):
     def run(self):
         global pname
-        from subprocess import Popen, PIPE, call
-        from os import getcwd, chdir, path
+        from os import path
         from os import remove
         import glob
         import shutil
@@ -46,13 +87,14 @@ class RunClean(clean):
         shutil.rmtree(path.join(cdir, 'dist'), ignore_errors=True)
         shutil.rmtree(path.join(cdir, name + '.egg-info'), ignore_errors=True)
         shutil.rmtree(path.join(cdir, pname, '__pycache__'), ignore_errors=True)
+        shutil.rmtree(path.join(cdir, testdir, '__pycache__'), ignore_errors=True)
 
 if __name__ == '__main__':
     release = os.environ.get('RELEASE', '0')
     if release == "1":
         GIT_HEAD_REV = ""
     else:
-        GIT_HEAD_REV = check_output(shlex.split('git rev-parse --short HEAD')).strip()
+        GIT_HEAD_REV = subprocess.check_output(shlex.split('git rev-parse --short HEAD')).strip()
 
     if GIT_HEAD_REV == "":
         tag = ""
@@ -71,6 +113,7 @@ if __name__ == '__main__':
         license='MIT',
         options=dict(egg_info=dict(tag_build=tag)),
         cmdclass={
-            'clean': RunClean
+            'test': RunTests,
+            'clean': RunClean,
         },
     )

@@ -4,7 +4,6 @@ import sys
 import argparse
 import yaml
 import logging
-import time
 import subprocess
 import signal
 import time
@@ -129,21 +128,23 @@ def main():
         error_trigger = False
         error_step = False
         for s in services:
-            last_fail = s.fail
-            (fail, err) = s.check_fail()
-            if not err is None:
-                logger.info(err)
+            last_status = s.last_status()
+            (fail, msg) = s.check_fail()
+            status = s.last_status()
+            if last_status != status:
+                logger.info("service %s is %s (%s)%s" % (s.service,
+                                                          ServiceStatus.toStr(status),
+                                                          s.start_time,
+                                                          (", failed state" if fail else ""))
+                             )
+
+            if not msg is None:
+                logger.info(msg)
+
             if fail:
                 error_step = True
-                if not err is None:
+                if not msg is None:
                     error_trigger = True
-
-            if args.debug:
-                logger.debug("service %s is %s (%s)%s" % (s.service,
-                                 ServiceStatus.toStr(s.last_status()),
-                                 s.start_time,
-                                 (", failed state" if fail else ""))
-                            )
 
         if not relay is None:
             current_t = int(time.time())
@@ -157,12 +158,12 @@ def main():
                 if cluster.fail != cluster.prev_fail:
                     logger.info("cluster %s %s" % (cluster.name, (" failed" if cluster.fail else "")))
 
-            (fail, err) = relay.check_fail_status()
-            if not err is None:
-                logger.info(err)
+            (fail, msg) = relay.check_fail_status()
+            if not msg is None:
+                logger.info(msg)
             if fail:
                 error_step = True
-                if not err is None:
+                if not msg is None:
                     error_trigger = True
 
             if args.debug:
@@ -186,9 +187,9 @@ def main():
                         proc = subprocess.Popen(recovery_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                         out = proc.communicate()[0]
                         rc = proc.returncode
-                        logger.info("error event (%d): %s" % (rc, out))
+                        logger.info("recovery event (%d): %s" % (rc, out))
                     except Exception as e:
-                        logger.error("recovery event: " + str(e))
+                        logger.error("recovery event failed: " + str(e))
 
                     error = False
 
@@ -202,7 +203,7 @@ def main():
                 rc = proc.returncode
                 logger.info("error event (%d): %s" % (rc, out))
             except Exception as e:
-                logger.error("error event: " + str(e))
+                logger.error("error event failed: " + str(e))
 
             error = True
 

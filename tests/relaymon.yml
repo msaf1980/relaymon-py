@@ -14,5 +14,6 @@ error_cmd: "echo DOWN; ip addr"
 carbon_c_relay: "/etc/carbon-c-relay.conf"
 
 services:
-  - "carbon-c-relay"
-  - "bioyino"
+  #- "carbon-c-relay"
+  #- "bioyino"
+  - "sshd"

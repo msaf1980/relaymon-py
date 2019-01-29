@@ -115,6 +115,7 @@ class ClusterGroup:
                         # Reset fail counter
                         if fail_count > 0:
                             fail_count = 0
+                        if self.fail:
                             self.fail = False
                             msg = "cluster group %s recovered" % self.name
 

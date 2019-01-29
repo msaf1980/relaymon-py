@@ -145,6 +145,7 @@ class Service:
                         # Reset fail counter
                         if fail_count > 0:
                             fail_count = 0
+                        if self.fail:
                             self.fail = False
                             msg = "service %s recovered" % self.service
                 else:
@@ -156,6 +157,7 @@ class Service:
                 if not self.fail:
                     self.fail = True
                     msg = "service %s failed" % self.service
+
                 return True, msg
 
         return False, msg
